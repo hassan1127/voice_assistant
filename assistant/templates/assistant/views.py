@@ -26,7 +26,7 @@ def ask(request):
             user_message = data.get("message", "")
             print("User message:", user_message)
 
-            # Get answer from Groq
+
             chat = groq_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
