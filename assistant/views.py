@@ -3,7 +3,7 @@ import json
 import base64
 from io import BytesIO
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from groq import Groq
 from gtts import gTTS
@@ -13,8 +13,46 @@ load_dotenv()
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+conversation_history = []
+
 def index(request):
-    return render(request, 'assistant/index.html')
+    if request.method == "POST":
+        user_message = request.POST.get("message", "")
+        conversation_history.append({
+            "role": "user",
+            "content": user_message
+        })
+
+        # Get answer from Groq
+        messages = [
+            {"role": "system", "content": "You are a helpful voice assistant. Keep answers short and clear."}
+        ] + conversation_history
+
+        chat = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages
+        )
+        answer = chat.choices[0].message.content
+        conversation_history.append({
+            "role": "assistant",
+            "content": answer
+        })
+
+        # Convert to speech
+        tts = gTTS(text=answer, lang='en')
+        audio_buffer = BytesIO()
+        tts.write_to_fp(audio_buffer)
+        audio_buffer.seek(0)
+        audio_base64 = base64.b64encode(audio_buffer.read()).decode('utf-8')
+
+        return render(request, 'assistant/index.html', {
+            "answer": answer,
+            "audio": audio_base64,
+            "user_message": user_message,
+            "history": conversation_history
+        })
+
+    return render(request, 'assistant/index.html', {"history": conversation_history})
 
 @csrf_exempt
 def ask(request):
@@ -22,20 +60,26 @@ def ask(request):
         try:
             data = json.loads(request.body)
             user_message = data.get("message", "")
-            print("User message:", user_message)
 
-            # Get answer from Groq
+            conversation_history.append({
+                "role": "user",
+                "content": user_message
+            })
+
+            messages = [
+                {"role": "system", "content": "You are a helpful voice assistant. Keep answers short and clear."}
+            ] + conversation_history
+
             chat = groq_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": "You are a helpful voice assistant. Keep answers short and clear."},
-                    {"role": "user", "content": user_message}
-                ]
+                messages=messages
             )
             answer = chat.choices[0].message.content
-            print("Answer:", answer)
+            conversation_history.append({
+                "role": "assistant",
+                "content": answer
+            })
 
-            # Convert to speech using gTTS
             tts = gTTS(text=answer, lang='en')
             audio_buffer = BytesIO()
             tts.write_to_fp(audio_buffer)
