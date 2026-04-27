@@ -37,17 +37,13 @@ def ask(request):
             answer = chat.choices[0].message.content
             print("Answer:", answer)
 
-            # Convert to speech using gTTS
-            tts = gTTS(text=answer, lang='en')
-            audio_buffer = BytesIO()
-            tts.write_to_fp(audio_buffer)
-            audio_buffer.seek(0)
-            audio_base64 = base64.b64encode(audio_buffer.read()).decode('utf-8')
+            
 
-            return JsonResponse({
+            return render(request, 'assistant/index.html', {
                 "answer": answer,
-                "audio": audio_base64
-            })
+                "user_message": user_message,
+                "history": conversation_history
+})
 
         except Exception as e:
             print("ERROR:", str(e))

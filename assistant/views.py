@@ -1,12 +1,9 @@
 import os
 import json
-import base64
-from io import BytesIO
 from django.shortcuts import render
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from groq import Groq
-from gtts import gTTS
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,7 +20,6 @@ def index(request):
             "content": user_message
         })
 
-        # Get answer from Groq
         messages = [
             {"role": "system", "content": "You are a helpful voice assistant. Keep answers short and clear."}
         ] + conversation_history
@@ -38,61 +34,10 @@ def index(request):
             "content": answer
         })
 
-        # Convert to speech
-        tts = gTTS(text=answer, lang='en')
-        audio_buffer = BytesIO()
-        tts.write_to_fp(audio_buffer)
-        audio_buffer.seek(0)
-        audio_base64 = base64.b64encode(audio_buffer.read()).decode('utf-8')
-
         return render(request, 'assistant/index.html', {
             "answer": answer,
-            "audio": audio_base64,
             "user_message": user_message,
             "history": conversation_history
         })
 
     return render(request, 'assistant/index.html', {"history": conversation_history})
-
-@csrf_exempt
-def ask(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            user_message = data.get("message", "")
-
-            conversation_history.append({
-                "role": "user",
-                "content": user_message
-            })
-
-            messages = [
-                {"role": "system", "content": "You are a helpful voice assistant. Keep answers short and clear."}
-            ] + conversation_history
-
-            chat = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=messages
-            )
-            answer = chat.choices[0].message.content
-            conversation_history.append({
-                "role": "assistant",
-                "content": answer
-            })
-
-            tts = gTTS(text=answer, lang='en')
-            audio_buffer = BytesIO()
-            tts.write_to_fp(audio_buffer)
-            audio_buffer.seek(0)
-            audio_base64 = base64.b64encode(audio_buffer.read()).decode('utf-8')
-
-            return JsonResponse({
-                "answer": answer,
-                "audio": audio_base64
-            })
-
-        except Exception as e:
-            print("ERROR:", str(e))
-            return JsonResponse({"error": str(e)}, status=500)
-
-    return JsonResponse({"error": "Invalid request"}, status=400)
